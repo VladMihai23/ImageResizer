@@ -65,27 +65,55 @@ public class ImageResizer extends JFrame implements ActionListener {
                     originalLabel.setIcon(new ImageIcon(originalImage));
                 } catch (IOException ex) {
                     ex.printStackTrace();
+                    JOptionPane.showMessageDialog(this, "Error loading image.");
                 }
             }
         } else if (e.getSource() == resizeButton) {
+            if (originalImage == null) {
+                JOptionPane.showMessageDialog(this, "Please open an image before resizing.");
+                return;
+            }
+
             try {
                 int newWidth = Integer.parseInt(widthField.getText());
                 int newHeight = Integer.parseInt(heightField.getText());
 
+                resizeButton.setEnabled(false);
                 long startTime = System.nanoTime();
-                resizedImage = resizeImage(originalImage, newWidth, newHeight);
-                long endTime = System.nanoTime();
 
-                processingTime = (endTime - startTime) / 1_000_000;
+                new SwingWorker<BufferedImage, Void>() {
+                    @Override
+                    protected BufferedImage doInBackground() throws Exception {
+                        return resizeImage(originalImage, newWidth, newHeight);
+                    }
 
-                resizedLabel.setIcon(new ImageIcon(resizedImage));
-
-                JOptionPane.showMessageDialog(this, "Timp de procesare: " + processingTime + " ms");
+                    @Override
+                    protected void done() {
+                        try {
+                            resizedImage = get();
+                            resizedLabel.setIcon(new ImageIcon(resizedImage));
+                            long endTime = System.nanoTime();
+                            processingTime = (endTime - startTime) / 1_000_000;
+                            JOptionPane.showMessageDialog(ImageResizer.this, "Processing time: " + processingTime + " ms");
+                        } catch (Exception ex) {
+                            ex.printStackTrace();
+                            JOptionPane.showMessageDialog(ImageResizer.this, "Error during resizing.");
+                        } finally {
+                            resizeButton.setEnabled(true);
+                        }
+                    }
+                }.execute();
 
             } catch (NumberFormatException ex) {
                 JOptionPane.showMessageDialog(this, "Please enter valid numbers for width and height.");
             }
+
         } else if (e.getSource() == saveButton) {
+            if (resizedImage == null) {
+                JOptionPane.showMessageDialog(this, "Please resize the image before saving.");
+                return;
+            }
+
             try {
                 JFileChooser fileChooser = new JFileChooser();
                 fileChooser.setDialogTitle("Save Image");
@@ -107,13 +135,15 @@ public class ImageResizer extends JFrame implements ActionListener {
                 }
             } catch (IOException ex) {
                 ex.printStackTrace();
+                JOptionPane.showMessageDialog(this, "Error saving image.");
             }
         }
     }
 
     private BufferedImage resizeImage(BufferedImage originalImage, int width, int height) {
+        int imageType = originalImage.getColorModel().hasAlpha() ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB;
         Image temp = originalImage.getScaledInstance(width, height, Image.SCALE_SMOOTH);
-        BufferedImage resized = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        BufferedImage resized = new BufferedImage(width, height, imageType);
 
         Graphics2D g2d = resized.createGraphics();
         g2d.drawImage(temp, 0, 0, null);
